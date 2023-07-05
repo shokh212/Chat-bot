@@ -1,0 +1,121 @@
+import sqlite3
+from telebot import types
+import telebot
+conn = sqlite3.connect("data.db", check_same_thread=False)
+c=conn.cursor()
+pfile = []
+c.execute('''CREATE TABLE IF NOT EXISTS users(
+    id INTEGER,
+    name TEXT,
+    age INTEGER,
+    location TEXT,
+    avatar TEXT,
+    bio TEXT,
+    liked_users INTEGER,
+    gender TEXT,
+    l_gender TEXT
+            )''')
+conn.commit()
+
+bot = telebot.TeleBot("6209915974:AAGFDIxSqxIXQKcbCSTrrPzXX8DBIOiDQt4")
+@bot.message_handler(content_types="text")
+def menu(message):
+    if message.text == "/start":
+        markup =types.ReplyKeyboardMarkup(resize_keyboard=True)
+        item1=types.KeyboardButton("Anketa To'ldirish")
+        item2 =types.KeyboardButton("Anketa ko'rish")
+        item3 = types.KeyboardButton("Foydalanuvchi qidirish")
+        item4= types.KeyboardButton("Yoqtirgan foydalanuvchilar")
+        item5 = types.KeyboardButton("Glavniy admin")
+        markup.add(item1,item2,item3,item4,item5)
+        bot.send_message(message.chat.id,"Menu",reply_markup=markup)
+    if message.text == "Anketa ko'rish":
+        profile(message)
+        return
+    if message.text =="Glavniy admin":
+        bot.send_message(message.chat.id,"https://t.me/dear_207")
+    if message.text == "Anketa To'ldirish":
+        msg = bot.send_message(message.chat.id,"Ismingizni kiriting ...")
+        bot.register_next_step_handler (msg,name)
+def profile (message):
+    uid = c.execute("SELECT name,age,location,avatar,bio from users where id=?",(message.chat.id,)).fetchall()
+    proflist= [item for i in uid for item in i]
+    if proflist:
+        bot.send_message(message.chat.id, "Sizni profilingiz:")
+        bot.send_photo(message.chat.id,proflist[3],caption=f"{proflist[0]}, {proflist[1]}, {proflist[2]}\n\n{proflist[4]}")
+    else:
+        msg=bot.send_message(message.chat.id,"Profilingizni to'ldiring!")
+        bot.register_next_step_handler(msg,name)
+    return
+        
+def name(message):
+    txt = message.text
+    pfile.append(txt)
+    msg = bot.send_message(message.chat.id,"Yoshingizni kiriting ...")
+    bot.register_next_step_handler(msg,age)
+    return
+def age(message):
+    txt = message.text
+    if not txt.isdigit():
+        bot.send_message(message.chat.id,"Faqat raqam kiriting!")
+        pfile.clear()
+        return
+    pfile.append(txt)
+    msg = bot.send_message(message.chat.id,"Qayerdansiz ...")
+    bot.register_next_step_handler(msg,location)
+    return
+
+def location(message):
+    txt = message.text
+    pfile.append(txt)
+    msg = bot.send_message(message.chat.id,"Rasmingizni jo'nating ....")
+    bot.register_next_step_handler(msg,avatar) 
+    return
+@bot.message_handler(content_types="photo")
+
+def avatar(message):
+    if message.photo:
+        pfile.append(message.photo[-1].file_id)
+        msg = bot.send_message(message.chat.id,"O'zingiz haqingizda ma'lumot bering ...")
+        bot.register_next_step_handler(msg,bio)
+    else:
+        bot.send_message(message.chat.id,"Faqat rasm jo'nating!!!!")
+    return
+def bio(message):
+    txt= message.text
+    pfile.append(txt)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    item1 = types.KeyboardButton("Erkak")
+    item2 = types.KeyboardButton("Ayol")
+    item3 = types.KeyboardButton("Anketani ko'rish")
+    markup.add(item1,item2,item3)
+    if message.text == "Anketa ko'rish":
+        profile(message)
+        return
+    msg= bot.send_message(message.chat.id,"Jinsingizni tanlang ...", reply_markup = markup)
+    bot.register_next_step_handler(msg,gender)
+    return
+def gender(message):
+    txt=message.text
+    if txt == "Ayol" or txt=="Erkak":
+        pfile.append(txt)
+        msg=bot.send_message(message.chat.id,"Siz kimni qidiryabsiz? ....")
+        bot.register_next_step_handler(msg,gender_l)
+        return
+    else:
+        bot.send_message(message.chat.id,"Faqat erkak yoki ayolni kiriting!!!")
+        return
+def gender_l(message):
+    txt = message.text
+    if txt == "Ayol" or txt=="Erkak":
+        pfile.append(txt)
+        c.execute("INSERT INTO users(id, name,age,location,avatar,bio,gender,l_gender) VALUES (?,?,?,?,?,?,?,?)", (message.chat.id, pfile[0],pfile[1],pfile[2],pfile[3],pfile[4],pfile[5],pfile[6],))
+        conn.commit()
+        return
+    else:
+        bot.send_message(message.chat.id,"Faqat erkak yoki ayoldan birini tanlang!!!")
+        return
+    
+bot.enable_save_next_step_handlers(delay=1) 
+bot.load_next_step_handlers 
+bot.polling(none_stop=True,interval=0)
